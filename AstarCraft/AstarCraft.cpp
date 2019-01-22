@@ -5,7 +5,6 @@
 #include <array>
 #include <unordered_set>
 #include <map>
-#include <list>
 
 using namespace std;
 
@@ -63,11 +62,68 @@ struct Robot
 struct Board
 {
     array<array<CELLTYPE, 19>, 10> grid;
-    list<Robot> robots;
+    vector<Robot> robots;
 
     CELLTYPE getCellType(array<int, 2> & pos) const
     {
         return grid.at(pos.at(0)).at(pos.at(1));
+    }
+
+    int getRobotScore(Robot & robot)
+    {
+        int score = 0;
+
+        // Loop until the robot is in the void or repeats a state
+        while (true)
+        {
+            // If the robot is in the void, it's done
+            auto cellType = getCellType(robot.pos);
+            if (cellType == VOID)
+            {
+                return score;
+            }
+
+            // Turn the robot if necessary
+            if (cellType == LEFTARROW) { robot.direction = LEFT; }
+            else if (cellType == RIGHTARROW) { robot.direction = RIGHT; }
+            else if (cellType == UPARROW) { robot.direction = UP; }
+            else if (cellType == DOWNARROW) { robot.direction = DOWN; }
+
+            // If the robot has returned to a previous state, it's done
+            int robotStateID = robot.getStateID();
+            if (robot.visitedStates.count(robotStateID))
+            {
+                return score;
+            }
+
+            // If the robot survives, get a point
+            ++score;
+
+            // Log that the robot has visited this state
+            robot.visitedStates.insert(robotStateID);
+
+            // Advance the robot and repeat
+            if (robot.direction == LEFT) 
+            {
+                int& coord = robot.pos.at(1);
+                coord = coord != 0 ? coord - 1 : 18;
+            }
+            else if (robot.direction == RIGHT)
+            {
+                int& coord = robot.pos.at(1);
+                coord = coord != 18 ? coord + 1 : 0;
+            }
+            else if (robot.direction == UP)
+            {
+                int& coord = robot.pos.at(0);
+                coord = coord != 0 ? coord - 1 : 9;
+            }
+            else if (robot.direction == DOWN)
+            {
+                int& coord = robot.pos.at(0);
+                coord = coord != 9 ? coord + 1 : 0;
+            }
+        }
     }
 
     int getSimScore()
@@ -76,43 +132,9 @@ struct Board
         int score = 0;
 
         // Cycle through the robots
-        auto robotIter = robots.begin();
-        while (robotIter != robots.end())
+        for (auto & robot : robots)
         {
-            // Delete any robots in the void
-            auto cellType = getCellType(robotIter->pos);
-            if (cellType == VOID)
-            {
-                robotIter = robots.erase(robotIter);
-                continue;
-            }
-
-            // Turn the robot if necessary
-            if (cellType == LEFTARROW) { robotIter->direction = LEFT; }
-            else if (cellType == RIGHTARROW) { robotIter->direction = RIGHT; }
-            else if (cellType == UPARROW) { robotIter->direction = UP; }
-            else if (cellType == DOWNARROW) { robotIter->direction = DOWN; }
-
-            // Delete any robots that have returned to an identical state
-            int robotStateID = robotIter->getStateID();
-            if (robotIter->visitedStates.count(robotStateID))
-            {
-                robotIter = robots.erase(robotIter);
-                continue;
-            }
-
-            // If the robot survives, get a point
-            ++score;
-
-            // Log that the robot has visited this state
-            robotIter->visitedStates.insert(robotStateID);
-
-            // TODO: Advance the robot and repeat
-            // I can do each robot to completion before moving on to the next. This means I don't need to delete robots on death
-            // use vector, and a for each loop
-
-
-            ++robotIter;
+            score += getRobotScore(robot);
         }
 
         return score;
