@@ -5,6 +5,7 @@
 #include <array>
 #include <unordered_set>
 #include <map>
+#include <ctime>
 
 using namespace std;
 
@@ -72,7 +73,7 @@ struct Robot
 struct Board
 {
     array<array<CELLTYPE, 19>, 10> grid;
-    vector<Robot> robots;
+    vector<Robot> robots, initRobots;
 
     void putCellType(array<int, 2> & pos, CELLTYPE type)
     {
@@ -142,28 +143,98 @@ struct Board
         }
     }
 
-    SimResult getSimResult()
+    SimResult getSimResult(int robotIndex)
     {
         // Simulate the game and predict the final score
-        // Return the last safe position of the (for now) last robot in the list
+        // Return the last safe position of the robot with the input index
 
         SimResult result, robotResult;
 
         // Cycle through the robots
-        for (auto & robot : robots)
+        for (int i = 0; i < robots.size(); ++i)
         {
+            auto & robot = robots[i];
             robotResult = getRobotResult(robot);
             result.score += robotResult.score;
-            result.lastPos = robotResult.lastPos;
+
+            if (i == robotIndex)
+            {
+                result.lastPos = robotResult.lastPos;
+            }
         }
 
         return result;
+    }
+
+    array<int,2> testArrowPosition(array<int, 2> & position, int & bestScore, string & solution, int robotIndex)
+    {
+        // See if putting an arrow on the  position can improve the score (reset every time)
+        SimResult result;
+        array<int, 2> lastPosition = { {-1,-1} };
+        CELLTYPE finalType = PLATFORM;
+        string solutionAddition = "";
+
+        // LEFT
+        putCellType(position, LEFTARROW);
+        result = getSimResult(robotIndex);
+        if (result.score > bestScore)
+        {
+            bestScore = result.score;
+            solutionAddition = to_string(position.at(1)) + " " + to_string(position.at(0)) + " L ";
+            lastPosition = result.lastPos;
+            finalType = LEFTARROW;
+        }
+        robots = initRobots;
+
+        // RIGHT
+        putCellType(position, RIGHTARROW);
+        result = getSimResult(robotIndex);
+        if (result.score > bestScore)
+        {
+            bestScore = result.score;
+            solutionAddition = to_string(position.at(1)) + " " + to_string(position.at(0)) + " R ";
+            lastPosition = result.lastPos;
+            finalType = RIGHTARROW;
+        }
+        robots = initRobots;
+
+        // UP
+        putCellType(position, UPARROW);
+        result = getSimResult(robotIndex);
+        if (result.score > bestScore)
+        {
+            bestScore = result.score;
+            solutionAddition = to_string(position.at(1)) + " " + to_string(position.at(0)) + " U ";
+            lastPosition = result.lastPos;
+            finalType = UPARROW;
+        }
+        robots = initRobots;
+
+        // DOWN
+        putCellType(position, DOWNARROW);
+        result = getSimResult(robotIndex);
+        if (result.score > bestScore)
+        {
+            bestScore = result.score;
+            solutionAddition = to_string(position.at(1)) + " " + to_string(position.at(0)) + " D ";
+            lastPosition = result.lastPos;
+            finalType = DOWNARROW;
+        }
+        robots = initRobots;
+
+        // Before leaving, return the board to the state that produced the best score;
+        putCellType(position, finalType);
+        solution += solutionAddition;
+
+        return lastPosition;
     }
 };
 
 int main()
 {
     Board board;
+
+    auto start = clock();
 
     for (int i = 0; i < 10; i++)
     {
@@ -192,58 +263,33 @@ int main()
     }
 
     // Save the starting robot states
-    auto initRobots = board.robots;
+    board.initRobots = board.robots;
 
     // Get the default score as a starting point
     string solution = "";
-    SimResult result = board.getSimResult();
+    SimResult result = board.getSimResult(0);
     int bestScore = result.score;
     auto currLastPos = result.lastPos;
 
     // Reset the robots
-    board.robots = initRobots;
+    board.robots = board.initRobots;
 
-    // See if putting an arrow on the last safe position can improve the score (reset every time)
-    // LEFT
-    board.putCellType(currLastPos, LEFTARROW);
-    result = board.getSimResult();
-    if (result.score > bestScore)
+    // Try to maximize the path of each robot
+    for (int i = 0; i < robotCount; ++i)
     {
-        bestScore = result.score;
-        solution = to_string(currLastPos.at(1)) + " " + to_string(currLastPos.at(0)) + " L";
-    }
-    board.robots = initRobots;
+        // Test whether putting an arrow of some sort on the last possible spot in the robot's path can improve the score
+        // Keep going until no arrow helps (this is when it returns -1,-1 as the last pos)
+        while (currLastPos.at(0) >= 0)
+        {
+            currLastPos = board.testArrowPosition(currLastPos, bestScore, solution, i);
+        }
 
-    // RIGHT
-    board.putCellType(currLastPos, RIGHTARROW);
-    result = board.getSimResult();
-    if (result.score > bestScore)
-    {
-        bestScore = result.score;
-        solution = to_string(currLastPos.at(1)) + " " + to_string(currLastPos.at(0)) + " R";
+        currLastPos = board.getSimResult(i + 1).lastPos;
     }
-    board.robots = initRobots;
 
-    // UP
-    board.putCellType(currLastPos, UPARROW);
-    result = board.getSimResult();
-    if (result.score > bestScore)
-    {
-        bestScore = result.score;
-        solution = to_string(currLastPos.at(1)) + " " + to_string(currLastPos.at(0)) + " U";
-    }
-    board.robots = initRobots;
 
-    // DOWN
-    board.putCellType(currLastPos, DOWNARROW);
-    result = board.getSimResult();
-    if (result.score > bestScore)
-    {
-        bestScore = result.score;
-        solution = to_string(currLastPos.at(1)) + " " + to_string(currLastPos.at(0)) + " D";
-    }
-    board.robots = initRobots;
 
+    cerr << "time " << double(clock() - start) / CLOCKS_PER_SEC << endl;
     cerr << bestScore << endl;
     cout << solution << endl;
 }
